@@ -8,6 +8,10 @@ import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +19,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.TransactionManager;
+
+import javax.sql.DataSource;
 
 @Configuration
 public class BatchConfig {
@@ -32,12 +38,15 @@ public class BatchConfig {
 
     @Bean
     public Step steps(JobRepository jobRepository,
-                      DataSourceTransactionManager transactionManager) {
+                      DataSourceTransactionManager transactionManager,
+                      ItemReader<Employee> employeeReader,
+                      ItemProcessor<Employee,Employee> employeeProcessor,
+                      ItemWriter<Employee> employeeWriter  ) {
         return new StepBuilder("steps", jobRepository)
-                .chunk(5,transactionManager)
-                .reader(employeeReader())
-                .processor()
-                .writer()
+                .<Employee,Employee>chunk(5,transactionManager)
+                .reader(employeeReader)
+                .processor(employeeProcessor)
+                .writer(employeeWriter)
                 .build();
     }
 
@@ -55,7 +64,20 @@ public class BatchConfig {
 
     // create a processor
 
+    @Bean
+    public ItemProcessor<Employee,Employee> employeeProcessor() {
+        return new CustomEmployeeProcessor();
+    }
+
 
     // create a writer
+    @Bean
+    public ItemWriter<Employee> employeeWriter(DataSource dataSource) {
+        return  new JdbcBatchItemWriterBuilder<Employee>()
+                .sql("INSERT into employee(empId,name,address,salary,hraPer,hra) values(:empId,:name,:address,:salary,:hraPer,:hra)")
+                .dataSource(dataSource)
+                .beanMapped()
+                .build();
+    }
 
 }
